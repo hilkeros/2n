@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 
-const ACTIVE_WINDOW_MS = 120_000;
+export const ACTIVE_WINDOW_MS = 120_000;
 
 export interface LocationUpdate {
   latitude: number;
@@ -79,7 +79,7 @@ export async function getNearbyCount(
   }).length;
 }
 
-function haversineMeters(
+export function haversineMeters(
   lat1: number,
   lon1: number,
   lat2: number,

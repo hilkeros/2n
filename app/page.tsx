@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth/session";
+import Link from "next/link";
 import { LoginForm } from "@/components/LoginForm";
 import { LogoutButton } from "@/components/LogoutButton";
 import { ProximityExperience } from "@/components/ProximityExperience";
@@ -28,6 +29,12 @@ export default async function Home() {
                 </p>
                 <LogoutButton />
               </div>
+              <Link
+                href="/debug/proximity"
+                className="inline-flex rounded-md border border-zinc-300 px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              >
+                Open proximity diagnostics
+              </Link>
               <p className="text-green-600">Authentication working!</p>
               <ProximityExperience />
             </div>
