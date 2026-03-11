@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NearbyAudioPlayer } from "@/components/NearbyAudioPlayer";
 
 type Mode = "solo" | "group";
@@ -10,9 +10,9 @@ const RADIUS_METERS = 100;
 const REFRESH_INTERVAL_MS = 5_000;
 
 export function ProximityExperience() {
+  const updatesEnabledRef = useRef(true);
   const [permissionState, setPermissionState] = useState<PermissionState>("idle");
   const [nearbyCount, setNearbyCount] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastLocationStatus, setLastLocationStatus] = useState<number | null>(null);
   const [lastNearbyStatus, setLastNearbyStatus] = useState<number | null>(null);
@@ -21,11 +21,12 @@ export function ProximityExperience() {
   const mode: Mode = useMemo(() => (nearbyCount >= 1 ? "group" : "solo"), [nearbyCount]);
 
   const tick = useCallback(async () => {
-    setLoading(true);
+    if (!updatesEnabledRef.current) return;
     setError(null);
 
     try {
       const position = await getCurrentPosition();
+      if (!updatesEnabledRef.current) return;
       setPermissionState("granted");
 
       const locationResponse = await fetch("/api/location", {
@@ -41,6 +42,7 @@ export function ProximityExperience() {
       if (!locationResponse.ok) {
         throw new Error("Failed to publish location");
       }
+      if (!updatesEnabledRef.current) return;
       setLastLocationStatus(locationResponse.status);
 
       const nearbyResponse = await fetch(
@@ -54,6 +56,7 @@ export function ProximityExperience() {
       }
 
       const nearbyPayload = (await nearbyResponse.json()) as { nearbyCount?: number };
+      if (!updatesEnabledRef.current) return;
       setNearbyCount(nearbyPayload.nearbyCount ?? 0);
     } catch (err) {
       if (isGeolocationError(err)) {
@@ -63,17 +66,22 @@ export function ProximityExperience() {
         setPermissionState((prev) => (prev === "idle" ? "error" : prev));
         setError(err instanceof Error ? err.message : "Failed to update proximity");
       }
-    } finally {
-      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    updatesEnabledRef.current = true;
     void tick();
 
     const interval = window.setInterval(() => {
       void tick();
     }, REFRESH_INTERVAL_MS);
+
+    const handleLogoutStart = () => {
+      updatesEnabledRef.current = false;
+      window.clearInterval(interval);
+      void fetch("/api/location", { method: "DELETE" }).catch(() => null);
+    };
 
     const handleVisibility = () => {
       if (!document.hidden) {
@@ -87,11 +95,14 @@ export function ProximityExperience() {
 
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("pagehide", clearPresence);
+    window.addEventListener("n2:logout-start", handleLogoutStart);
 
     return () => {
+      updatesEnabledRef.current = false;
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("pagehide", clearPresence);
+      window.removeEventListener("n2:logout-start", handleLogoutStart);
     };
   }, [tick]);
 
@@ -107,7 +118,6 @@ export function ProximityExperience() {
           <p>Location permission: {permissionState}</p>
           <p>Location API status: {lastLocationStatus ?? "n/a"}</p>
           <p>Nearby API status: {lastNearbyStatus ?? "n/a"}</p>
-          {loading && <p>Updating location...</p>}
         </div>
         {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="mt-3">

@@ -6,6 +6,8 @@ export function LogoutButton() {
   const router = useRouter();
 
   async function handleLogout() {
+    window.dispatchEvent(new Event("n2:logout-start"));
+    await fetch("/api/location", { method: "DELETE" }).catch(() => null);
     await fetch("/oauth/logout", { method: "POST" });
     router.refresh();
   }
