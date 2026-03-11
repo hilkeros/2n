@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getOAuthClient } from "@/lib/auth/client";
+import { clearUserLocation } from "@/lib/proximity";
 
 export async function POST() {
   try {
@@ -8,6 +9,7 @@ export async function POST() {
     const did = cookieStore.get("did")?.value;
 
     if (did) {
+      await clearUserLocation(did);
       const client = await getOAuthClient();
       await client.revoke(did);
     }

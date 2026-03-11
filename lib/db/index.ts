@@ -20,6 +20,7 @@ export const getDb = (): Kysely<DatabaseSchema> => {
 export interface DatabaseSchema {
   auth_state: AuthStateTable;
   auth_session: AuthSessionTable;
+  user_location: UserLocationTable;
 }
 
 interface AuthStateTable {
@@ -30,4 +31,12 @@ interface AuthStateTable {
 interface AuthSessionTable {
   key: string;
   value: string;
+}
+
+interface UserLocationTable {
+  did: string;
+  latitude: number;
+  longitude: number;
+  accuracy_meters: number;
+  updated_at: number;
 }

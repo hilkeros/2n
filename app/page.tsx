@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth/session";
 import { LoginForm } from "@/components/LoginForm";
 import { LogoutButton } from "@/components/LogoutButton";
+import { ProximityExperience } from "@/components/ProximityExperience";
 
 export default async function Home() {
   const session = await getSession();
@@ -28,6 +29,7 @@ export default async function Home() {
                 <LogoutButton />
               </div>
               <p className="text-green-600">Authentication working!</p>
+              <ProximityExperience />
             </div>
           ) : (
             <LoginForm />
