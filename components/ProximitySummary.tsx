@@ -10,26 +10,23 @@ type NearbyUser = { did: string; distanceMeters: number; handle?: string | null 
 const RADIUS_METERS = 100;
 const REFRESH_INTERVAL_MS = 5_000;
 
-export function ProximityExperience() {
+export function ProximitySummary() {
   const updatesEnabledRef = useRef(true);
   const [permissionState, setPermissionState] = useState<PermissionState>("idle");
   const [nearbyCount, setNearbyCount] = useState(0);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [lastLocationStatus, setLastLocationStatus] = useState<number | null>(null);
-  const [lastNearbyStatus, setLastNearbyStatus] = useState<number | null>(null);
-  const [debugSnapshot, setDebugSnapshot] = useState<string | null>(null);
 
   const mode: Mode = useMemo(() => (nearbyCount >= 1 ? "group" : "solo"), [nearbyCount]);
 
   const tick = useCallback(async () => {
     if (!updatesEnabledRef.current) return;
-    setError(null);
 
     try {
       const position = await getCurrentPosition();
       if (!updatesEnabledRef.current) return;
       setPermissionState("granted");
+      setError(null);
 
       const locationResponse = await fetch("/api/location", {
         method: "POST",
@@ -44,14 +41,11 @@ export function ProximityExperience() {
       if (!locationResponse.ok) {
         throw new Error("Failed to publish location");
       }
-      if (!updatesEnabledRef.current) return;
-      setLastLocationStatus(locationResponse.status);
 
       const nearbyResponse = await fetch(
         `/api/nearby?radiusMeters=${RADIUS_METERS}`,
         { cache: "no-store" },
       );
-      setLastNearbyStatus(nearbyResponse.status);
 
       if (!nearbyResponse.ok) {
         throw new Error("Failed to fetch nearby users");
@@ -61,15 +55,15 @@ export function ProximityExperience() {
         nearbyCount?: number;
         nearbyUsers?: NearbyUser[];
       };
+
       if (!updatesEnabledRef.current) return;
       setNearbyCount(nearbyPayload.nearbyCount ?? 0);
       setNearbyUsers(nearbyPayload.nearbyUsers ?? []);
     } catch (err) {
       if (isGeolocationError(err)) {
         setPermissionState(err.code === 1 ? "denied" : "error");
-        setError("Location permission is required for proximity audio.");
+        setError("Location permission is required.");
       } else {
-        setPermissionState((prev) => (prev === "idle" ? "error" : prev));
         setError(err instanceof Error ? err.message : "Failed to update proximity");
       }
     }
@@ -83,16 +77,16 @@ export function ProximityExperience() {
       void tick();
     }, REFRESH_INTERVAL_MS);
 
-    const handleLogoutStart = () => {
-      updatesEnabledRef.current = false;
-      window.clearInterval(interval);
-      void fetch("/api/location", { method: "DELETE" }).catch(() => null);
-    };
-
     const handleVisibility = () => {
       if (!document.hidden) {
         void tick();
       }
+    };
+
+    const handleLogoutStart = () => {
+      updatesEnabledRef.current = false;
+      window.clearInterval(interval);
+      void fetch("/api/location", { method: "DELETE" }).catch(() => null);
     };
 
     const clearPresence = () => {
@@ -112,53 +106,48 @@ export function ProximityExperience() {
     };
   }, [tick]);
 
+  const permissionLabel = permissionState === "granted" ? "Granted" : "Not granted";
+  const listeningLabel = mode === "group" ? "Social listening" : "Solo listening";
+
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
-        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Proximity status</p>
-        <div className="mt-2 grid gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-          <p>Radius: {RADIUS_METERS}m</p>
-          <p>Refresh: {REFRESH_INTERVAL_MS / 1000}s</p>
-          <p>Nearby users: {nearbyCount}</p>
-          <p>Mode: {mode}</p>
-          <p>Location permission: {permissionState}</p>
-          <p>Location API status: {lastLocationStatus ?? "n/a"}</p>
-          <p>Nearby API status: {lastNearbyStatus ?? "n/a"}</p>
-        </div>
-        <div className="mt-3">
-          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Nearby accounts</p>
-          {nearbyUsers.length === 0 ? (
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">No nearby accounts in range.</p>
-          ) : (
-            <ul className="mt-1 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
-              {nearbyUsers.map((user) => (
-                <li key={user.did}>
-                  {user.handle ?? formatDid(user.did)} ({user.distanceMeters}m)
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => {
-              void fetchDebugSnapshot(setDebugSnapshot);
-            }}
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-          >
-            Refresh debug snapshot
-          </button>
-          {debugSnapshot && (
-            <pre className="mt-2 max-h-56 overflow-auto rounded-md bg-zinc-900 p-3 text-xs text-zinc-100">
-              {debugSnapshot}
-            </pre>
-          )}
-        </div>
+    <div className="space-y-4 rounded-2xl border border-zinc-200 bg-gradient-to-b from-white to-zinc-50 p-5 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950">
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <StatusTile label="Location" value={permissionLabel} />
+        <StatusTile label="Nearby users" value={String(nearbyCount)} />
       </div>
 
+      <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Mode</p>
+        <p className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">{listeningLabel}</p>
+      </div>
+
+      <div>
+        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Nearby accounts</p>
+        {nearbyUsers.length === 0 ? (
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">No nearby accounts in range.</p>
+        ) : (
+          <ul className="mt-2 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
+            {nearbyUsers.map((user) => (
+              <li key={user.did}>
+                {user.handle ?? formatDid(user.did)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
       <NearbyAudioPlayer mode={mode} />
+    </div>
+  );
+}
+
+function StatusTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+      <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className="mt-1 text-base font-semibold text-zinc-900 dark:text-zinc-100">{value}</p>
     </div>
   );
 }
@@ -185,12 +174,4 @@ function isGeolocationError(error: unknown): error is GeolocationPositionError {
 function formatDid(did: string): string {
   if (did.length <= 28) return did;
   return `${did.slice(0, 16)}...${did.slice(-8)}`;
-}
-
-async function fetchDebugSnapshot(
-  setDebugSnapshot: (value: string | null) => void,
-): Promise<void> {
-  const response = await fetch("/api/debug/proximity", { cache: "no-store" });
-  const payload = await response.json();
-  setDebugSnapshot(JSON.stringify(payload, null, 2));
 }

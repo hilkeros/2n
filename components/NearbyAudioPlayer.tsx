@@ -13,7 +13,7 @@ const TRACKS = {
 
 export function NearbyAudioPlayer({ mode }: NearbyAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [audioReady, setAudioReady] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,51 +33,59 @@ export function NearbyAudioPlayer({ mode }: NearbyAudioPlayerProps) {
     const current = audioRef.current;
     if (!current) return;
 
+    const wasPlaying = !current.paused;
     current.src = TRACKS[mode];
     current.load();
 
-    if (!audioReady) return;
+    if (!wasPlaying || !isPlaying) return;
 
     current.play().catch(() => {
-      setAudioReady(false);
+      setIsPlaying(false);
     });
-  }, [mode, audioReady]);
+  }, [mode, isPlaying]);
 
-  const label = mode === "group" ? "Group mode" : "Solo mode";
-
-  async function enableAudio() {
+  async function toggleAudio() {
     const audio = audioRef.current;
     if (!audio) return;
 
     setAudioError(null);
+
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+      return;
+    }
+
     try {
       audio.src = TRACKS[mode];
       await audio.play();
-      setAudioReady(true);
+      setIsPlaying(true);
     } catch {
       setAudioError(
-        "Unable to start audio. Add /public/audio/solo.mp3 and /public/audio/group.mp3, then tap Enable audio again.",
+        "Unable to start audio. Add /public/audio/n2-solo.mp3 and /public/audio/n2-group.mp3, then try again.",
       );
     }
   }
 
+  const modeLabel = mode === "group" ? "Social listening" : "Solo listening";
+
   return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
+    <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Audio experience</p>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{label}</p>
+          <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Audio</p>
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{modeLabel}</p>
         </div>
         <button
           type="button"
-          onClick={enableAudio}
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          onClick={toggleAudio}
+          className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
         >
-          {audioReady ? "Resume audio" : "Enable audio"}
+          {isPlaying ? "Stop" : "Play"}
         </button>
       </div>
 
-      {audioError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{audioError}</p>}
+      {audioError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{audioError}</p>}
     </div>
   );
 }

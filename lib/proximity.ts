@@ -8,6 +8,11 @@ export interface LocationUpdate {
   accuracyMeters: number;
 }
 
+export interface NearbyUser {
+  did: string;
+  distanceMeters: number;
+}
+
 export async function upsertUserLocation(
   did: string,
   location: LocationUpdate,
@@ -44,6 +49,14 @@ export async function getNearbyCount(
   did: string,
   radiusMeters: number,
 ): Promise<number> {
+  const nearbyUsers = await getNearbyUsers(did, radiusMeters);
+  return nearbyUsers.length;
+}
+
+export async function getNearbyUsers(
+  did: string,
+  radiusMeters: number,
+): Promise<NearbyUser[]> {
   const now = Date.now();
   const activeCutoff = now - ACTIVE_WINDOW_MS;
   const db = getDb();
@@ -63,20 +76,25 @@ export async function getNearbyCount(
 
   const others = await db
     .selectFrom("user_location")
-    .select(["latitude", "longitude"])
+    .select(["did", "latitude", "longitude"])
     .where("did", "!=", did)
     .where("updated_at", ">=", activeCutoff)
     .execute();
 
-  return others.filter((other) => {
-    const distance = haversineMeters(
-      me.latitude,
-      me.longitude,
-      other.latitude,
-      other.longitude,
-    );
-    return distance <= radiusMeters;
-  }).length;
+  return others
+    .map((other) => ({
+      did: other.did,
+      distanceMeters: Math.round(
+        haversineMeters(
+          me.latitude,
+          me.longitude,
+          other.latitude,
+          other.longitude,
+        ),
+      ),
+    }))
+    .filter((other) => other.distanceMeters <= radiusMeters)
+    .sort((a, b) => a.distanceMeters - b.distanceMeters);
 }
 
 export function haversineMeters(

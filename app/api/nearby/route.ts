@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDid } from "@/lib/auth/session";
-import { getNearbyCount } from "@/lib/proximity";
+import { getNearbyUsers } from "@/lib/proximity";
+import { resolveDidToHandle } from "@/lib/identity";
 
 const DEFAULT_RADIUS_METERS = 100;
 const MAX_RADIUS_METERS = 1000;
@@ -23,10 +24,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Invalid radius" }, { status: 400 });
   }
 
-  const nearbyCount = await getNearbyCount(did, radiusMeters);
+  const nearbyUsers = await getNearbyUsers(did, radiusMeters);
+  const nearbyUsersWithHandles = await Promise.all(
+    nearbyUsers.map(async (user) => ({
+      ...user,
+      handle: await resolveDidToHandle(user.did),
+    })),
+  );
+  const nearbyCount = nearbyUsersWithHandles.length;
 
   return NextResponse.json({
     nearbyCount,
+    nearbyUsers: nearbyUsersWithHandles,
     mode: nearbyCount >= 1 ? "group" : "solo",
     radiusMeters,
   });
