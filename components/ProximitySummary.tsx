@@ -15,6 +15,7 @@ export function ProximitySummary() {
   const updatesEnabledRef = useRef(true);
   const [joinState, setJoinState] = useState<JoinState>("loading");
   const [joinSubmitting, setJoinSubmitting] = useState(false);
+  const [leaveSubmitting, setLeaveSubmitting] = useState(false);
   const [permissionState, setPermissionState] = useState<PermissionState>("idle");
   const [nearbyCount, setNearbyCount] = useState(0);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
@@ -110,6 +111,28 @@ export function ProximitySummary() {
     }
   }, []);
 
+  const handleLeave = useCallback(async () => {
+    setLeaveSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/join", { method: "DELETE" });
+      if (!response.ok) {
+        throw new Error("Failed to delete join record");
+      }
+
+      await fetch("/api/location", { method: "DELETE" }).catch(() => null);
+
+      setNearbyCount(0);
+      setNearbyUsers([]);
+      setJoinState("not_joined");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete join record");
+    } finally {
+      setLeaveSubmitting(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadJoinStatus();
   }, [loadJoinStatus]);
@@ -185,8 +208,16 @@ export function ProximitySummary() {
 
   return (
     <div className="space-y-4 rounded-2xl border border-zinc-200 bg-gradient-to-b from-white to-zinc-50 p-5 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950">
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
-        Joined for this song. Proximity listening is active.
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+        <span>Joined for this song. Proximity listening is active.</span>
+        <button
+          type="button"
+          disabled={leaveSubmitting}
+          onClick={handleLeave}
+          className="rounded-full border border-emerald-300 bg-white px-3 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-700 dark:bg-emerald-900 dark:text-emerald-200 dark:hover:bg-emerald-800"
+        >
+          {leaveSubmitting ? "Leaving..." : "Leave"}
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-sm">
