@@ -1,68 +1,114 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface NearbyAudioPlayerProps {
   mode: "solo" | "group";
 }
 
 const TRACKS = {
-  solo: "/audio/n2-solo.mp3",
-  group: "/audio/n2-group.mp3",
+  solo: "/audio/2to1-solo.mp3",
+  group: "/audio/2to1-group.mp3",
 };
 
+const ACTIVE_VOLUME = 0.75;
+const FADE_STEPS = 30;
+const FADE_DURATION_MS = 1000;
+
 export function NearbyAudioPlayer({ mode }: NearbyAudioPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const soloRef = useRef<HTMLAudioElement | null>(null);
+  const groupRef = useRef<HTMLAudioElement | null>(null);
+  const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
 
+  // Mount: create both audio elements, both silent
   useEffect(() => {
-    const audio = new Audio(TRACKS.solo);
-    audio.loop = true;
-    audio.preload = "auto";
-    audio.volume = 0.75;
-    audioRef.current = audio;
+    const solo = new Audio(TRACKS.solo);
+    solo.loop = true;
+    solo.preload = "auto";
+    solo.volume = 0;
+
+    const group = new Audio(TRACKS.group);
+    group.loop = true;
+    group.preload = "auto";
+    group.volume = 0;
+
+    soloRef.current = solo;
+    groupRef.current = group;
 
     return () => {
-      audio.pause();
-      audioRef.current = null;
+      solo.pause();
+      group.pause();
+      if (fadeTimerRef.current !== null) clearInterval(fadeTimerRef.current);
+      soloRef.current = null;
+      groupRef.current = null;
     };
   }, []);
 
+  const crossfade = useCallback((incoming: "solo" | "group") => {
+    if (fadeTimerRef.current !== null) clearInterval(fadeTimerRef.current);
+
+    const inEl = incoming === "solo" ? soloRef.current : groupRef.current;
+    const outEl = incoming === "solo" ? groupRef.current : soloRef.current;
+    if (!inEl || !outEl) return;
+
+    const startIn = inEl.volume;
+    const startOut = outEl.volume;
+    const stepIn = (ACTIVE_VOLUME - startIn) / FADE_STEPS;
+    const stepOut = (startOut - 0) / FADE_STEPS;
+    let step = 0;
+
+    fadeTimerRef.current = setInterval(() => {
+      step++;
+      inEl.volume = Math.min(ACTIVE_VOLUME, Math.max(0, startIn + stepIn * step));
+      outEl.volume = Math.max(0, startOut - stepOut * step);
+
+      if (step >= FADE_STEPS) {
+        inEl.volume = ACTIVE_VOLUME;
+        outEl.volume = 0;
+        clearInterval(fadeTimerRef.current!);
+        fadeTimerRef.current = null;
+      }
+    }, FADE_DURATION_MS / FADE_STEPS);
+  }, []);
+
+  // React to mode changes while playing
   useEffect(() => {
-    const current = audioRef.current;
-    if (!current) return;
-
-    const wasPlaying = !current.paused;
-    current.src = TRACKS[mode];
-    current.load();
-
-    if (!wasPlaying || !isPlaying) return;
-
-    current.play().catch(() => {
-      setIsPlaying(false);
-    });
-  }, [mode, isPlaying]);
+    if (!isPlaying) return;
+    crossfade(mode);
+  }, [mode, isPlaying, crossfade]);
 
   async function toggleAudio() {
-    const audio = audioRef.current;
-    if (!audio) return;
-
     setAudioError(null);
 
     if (isPlaying) {
-      audio.pause();
+      if (fadeTimerRef.current !== null) {
+        clearInterval(fadeTimerRef.current);
+        fadeTimerRef.current = null;
+      }
+      soloRef.current?.pause();
+      groupRef.current?.pause();
       setIsPlaying(false);
       return;
     }
 
+    const solo = soloRef.current;
+    const group = groupRef.current;
+    if (!solo || !group) return;
+
+    // Reset both to start, set initial volumes by mode
+    solo.currentTime = 0;
+    group.currentTime = 0;
+    solo.volume = mode === "solo" ? ACTIVE_VOLUME : 0;
+    group.volume = mode === "group" ? ACTIVE_VOLUME : 0;
+
     try {
-      audio.src = TRACKS[mode];
-      await audio.play();
+      await Promise.all([solo.play(), group.play()]);
       setIsPlaying(true);
     } catch {
       setAudioError(
-        "Unable to start audio. Add /public/audio/n2-solo.mp3 and /public/audio/n2-group.mp3, then try again.",
+        "Unable to start audio. Make sure /public/audio/2to1-solo.mp3 and /public/audio/2to1-group.mp3 exist, then try again.",
       );
     }
   }
