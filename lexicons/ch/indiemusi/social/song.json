@@ -1,0 +1,32 @@
+{
+  "defs": {
+    "main": {
+      "description": "A social song, that needs a groups of listeners to be fully enjoyed.",
+      "key": "tid",
+      "record": {
+        "properties": {
+          "name": {
+            "description": "Name of the song",
+            "maxGraphemes": 64,
+            "maxLength": 640,
+            "minLength": 1,
+            "type": "string"
+          },
+          "joinersNeeded": {
+            "description": "Number of joiners needed to start the full listening experience",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "joinersNeeded"
+        ],
+        "type": "object"
+      },
+      "type": "record"
+    }
+  },
+  "id": "ch.indiemusi.social.song",
+  "lexicon": 1
+}

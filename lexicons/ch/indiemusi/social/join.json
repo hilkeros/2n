@@ -1,0 +1,24 @@
+{
+  "defs": {
+    "main": {
+      "description": "Sign that you want to join a social listing experience of a specific song",
+      "key": "tid",
+      "record": {
+        "properties": {
+          "song": {
+            "description": "Link to the song that the user wants to listen to together with others",
+            "type": "string",
+            "format": "at-uri"
+          }
+        },
+        "required": [
+          "song"
+        ],
+        "type": "object"
+      },
+      "type": "record"
+    }
+  },
+  "id": "ch.indiemusi.social.join",
+  "lexicon": 1
+}
