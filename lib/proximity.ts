@@ -72,7 +72,7 @@ export async function getNearbyUsers(
     .where("did", "=", did)
     .executeTakeFirst();
 
-  if (!me) return 0;
+  if (!me) return [];
 
   const others = await db
     .selectFrom("user_location")
