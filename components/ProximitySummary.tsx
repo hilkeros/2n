@@ -6,12 +6,15 @@ import { NearbyAudioPlayer } from "@/components/NearbyAudioPlayer";
 type Mode = "solo" | "group";
 type PermissionState = "idle" | "granted" | "denied" | "error";
 type NearbyUser = { did: string; distanceMeters: number; handle?: string | null };
+type JoinState = "loading" | "joined" | "not_joined";
 
 const RADIUS_METERS = 100;
 const REFRESH_INTERVAL_MS = 5_000;
 
 export function ProximitySummary() {
   const updatesEnabledRef = useRef(true);
+  const [joinState, setJoinState] = useState<JoinState>("loading");
+  const [joinSubmitting, setJoinSubmitting] = useState(false);
   const [permissionState, setPermissionState] = useState<PermissionState>("idle");
   const [nearbyCount, setNearbyCount] = useState(0);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
@@ -19,8 +22,24 @@ export function ProximitySummary() {
 
   const mode: Mode = useMemo(() => (nearbyCount >= 1 ? "group" : "solo"), [nearbyCount]);
 
+  const loadJoinStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/join", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Failed to fetch join status");
+      }
+
+      const payload = (await response.json()) as { joined?: boolean };
+      setJoinState(payload.joined ? "joined" : "not_joined");
+    } catch (err) {
+      setJoinState("not_joined");
+      setError(err instanceof Error ? err.message : "Failed to fetch join status");
+    }
+  }, []);
+
   const tick = useCallback(async () => {
     if (!updatesEnabledRef.current) return;
+    if (joinState !== "joined") return;
 
     try {
       const position = await getCurrentPosition();
@@ -39,6 +58,10 @@ export function ProximitySummary() {
       });
 
       if (!locationResponse.ok) {
+        if (locationResponse.status === 403) {
+          setJoinState("not_joined");
+          throw new Error("Join this song first to participate.");
+        }
         throw new Error("Failed to publish location");
       }
 
@@ -67,10 +90,38 @@ export function ProximitySummary() {
         setError(err instanceof Error ? err.message : "Failed to update proximity");
       }
     }
+  }, [joinState]);
+
+  const handleJoin = useCallback(async () => {
+    setJoinSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/join", { method: "POST" });
+      if (!response.ok) {
+        throw new Error("Failed to create join record");
+      }
+
+      setJoinState("joined");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create join record");
+    } finally {
+      setJoinSubmitting(false);
+    }
   }, []);
 
   useEffect(() => {
+    void loadJoinStatus();
+  }, [loadJoinStatus]);
+
+  useEffect(() => {
     updatesEnabledRef.current = true;
+    if (joinState !== "joined") {
+      return () => {
+        updatesEnabledRef.current = false;
+      };
+    }
+
     void tick();
 
     const interval = window.setInterval(() => {
@@ -104,13 +155,40 @@ export function ProximitySummary() {
       window.removeEventListener("pagehide", clearPresence);
       window.removeEventListener("n2:logout-start", handleLogoutStart);
     };
-  }, [tick]);
+  }, [joinState, tick]);
 
   const permissionLabel = permissionState === "granted" ? "Granted" : "Not granted";
   const listeningLabel = mode === "group" ? "Social listening" : "Solo listening";
 
+  if (joinState !== "joined") {
+    return (
+      <div className="space-y-4 rounded-2xl border border-zinc-200 bg-gradient-to-b from-white to-zinc-50 p-5 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950">
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Access</p>
+          <p className="mt-1 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            Join this song to unlock the proximity listening experience.
+          </p>
+          <button
+            type="button"
+            disabled={joinState === "loading" || joinSubmitting}
+            onClick={handleJoin}
+            className="mt-3 rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          >
+            {joinState === "loading" ? "Checking join status..." : joinSubmitting ? "Joining..." : "Join"}
+          </button>
+        </div>
+
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 rounded-2xl border border-zinc-200 bg-gradient-to-b from-white to-zinc-50 p-5 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-950">
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+        Joined for this song. Proximity listening is active.
+      </div>
+
       <div className="grid grid-cols-2 gap-3 text-sm">
         <StatusTile label="Location" value={permissionLabel} />
         <StatusTile label="Nearby users" value={String(nearbyCount)} />
