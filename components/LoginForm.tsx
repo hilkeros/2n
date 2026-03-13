@@ -35,17 +35,17 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="space-y-1">
-        <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+      <div className="space-y-1 text-center">
+        <h2 className="text-xl font-semibold tracking-tight text-zinc-100">
           Sign in with your handle
         </h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-zinc-400">
           Use your AT Protocol handle, for example <span className="font-mono">alice.bsky.social</span>.
         </p>
       </div>
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label className="mb-1.5 block text-sm font-medium uppercase tracking-[0.12em] text-zinc-400">
           Handle
         </label>
         <input
@@ -53,14 +53,14 @@ export function LoginForm() {
           value={handle}
           onChange={(e) => setHandle(e.target.value)}
           placeholder="user.example.com"
-          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-zinc-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          className="w-full rounded-xl border border-zinc-700 bg-zinc-950/75 px-3 py-2.5 text-zinc-100 shadow-sm outline-none transition placeholder:text-zinc-500 focus:border-amber-300/70 focus:ring-2 focus:ring-amber-200/20"
           disabled={loading}
           autoComplete="username"
         />
       </div>
 
       {error && (
-        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+        <p className="rounded-xl border border-rose-900/70 bg-rose-950/30 px-3 py-2 text-sm text-rose-300">
           {error}
         </p>
       )}
@@ -68,7 +68,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={loading || !handle}
-        className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full rounded-xl border border-zinc-600 bg-zinc-900 px-4 py-2.5 font-medium text-zinc-100 shadow-[0_0_30px_rgba(0,0,0,0.25)] transition hover:border-amber-300/70 hover:bg-zinc-800 hover:text-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? "Signing in..." : "Sign in"}
       </button>
