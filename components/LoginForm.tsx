@@ -34,7 +34,14 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <div className="space-y-8">
+      <div className="space-y-3 text-center">
+        <p className="mx-auto max-w-md text-sm leading-relaxed text-zinc-300">
+          Music should be social. We unlearned to listen to music together. Gather with people in the same physical space, sign in with your AT Protocol account, and join the listening session. You can listen on your own, but it becomes better when you share the experience.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1 text-center">
         <h2 className="text-xl font-semibold tracking-tight text-zinc-100">
           Sign in with your handle
@@ -73,5 +80,6 @@ export function LoginForm() {
         {loading ? "Signing in..." : "Sign in"}
       </button>
     </form>
+    </div>
   );
 }
