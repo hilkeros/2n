@@ -33,6 +33,8 @@ export function NearbyAudioPlayer({
   const meterDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const soloSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const groupSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const soloGainRef = useRef<GainNode | null>(null);
+  const groupGainRef = useRef<GainNode | null>(null);
   const smoothedLevelRef = useRef(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -67,24 +69,34 @@ export function NearbyAudioPlayer({
   const crossfade = useCallback((incoming: "solo" | "group") => {
     if (fadeTimerRef.current !== null) clearInterval(fadeTimerRef.current);
 
+    const inGain = incoming === "solo" ? soloGainRef.current : groupGainRef.current;
+    const outGain = incoming === "solo" ? groupGainRef.current : soloGainRef.current;
     const inEl = incoming === "solo" ? soloRef.current : groupRef.current;
     const outEl = incoming === "solo" ? groupRef.current : soloRef.current;
     if (!inEl || !outEl) return;
 
-    const startIn = inEl.volume;
-    const startOut = outEl.volume;
+    // Use GainNode values when available (Safari ignores .volume on Web Audio-connected elements)
+    const getVol = (el: HTMLAudioElement, gain: GainNode | null) =>
+      gain ? gain.gain.value : el.volume;
+    const setVol = (el: HTMLAudioElement, gain: GainNode | null, vol: number) => {
+      if (gain) gain.gain.value = vol;
+      else el.volume = vol;
+    };
+
+    const startIn = getVol(inEl, inGain);
+    const startOut = getVol(outEl, outGain);
     const stepIn = (ACTIVE_VOLUME - startIn) / FADE_STEPS;
     const stepOut = (startOut - 0) / FADE_STEPS;
     let step = 0;
 
     fadeTimerRef.current = setInterval(() => {
       step++;
-      inEl.volume = Math.min(ACTIVE_VOLUME, Math.max(0, startIn + stepIn * step));
-      outEl.volume = Math.max(0, startOut - stepOut * step);
+      setVol(inEl, inGain, Math.min(ACTIVE_VOLUME, Math.max(0, startIn + stepIn * step)));
+      setVol(outEl, outGain, Math.max(0, startOut - stepOut * step));
 
       if (step >= FADE_STEPS) {
-        inEl.volume = ACTIVE_VOLUME;
-        outEl.volume = 0;
+        setVol(inEl, inGain, ACTIVE_VOLUME);
+        setVol(outEl, outGain, 0);
         clearInterval(fadeTimerRef.current!);
         fadeTimerRef.current = null;
       }
@@ -96,6 +108,17 @@ export function NearbyAudioPlayer({
     if (!isPlaying) return;
     crossfade(mode);
   }, [mode, isPlaying, crossfade]);
+
+  // Resume AudioContext when tab regains focus — browsers (especially Safari) suspend it on blur
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && audioCtxRef.current?.state === "suspended") {
+        void audioCtxRef.current.resume();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   function stopMetering() {
     if (meterFrameRef.current !== null) {
@@ -120,8 +143,20 @@ export function NearbyAudioPlayer({
       const soloSource = ctx.createMediaElementSource(solo);
       const groupSource = ctx.createMediaElementSource(group);
 
-      soloSource.connect(analyser);
-      groupSource.connect(analyser);
+      // Use GainNodes for volume control — Safari ignores .volume on elements
+      // connected to the Web Audio graph, so this is the only reliable approach.
+      const soloGain = ctx.createGain();
+      const groupGain = ctx.createGain();
+      soloGain.gain.value = mode === "solo" ? ACTIVE_VOLUME : 0;
+      groupGain.gain.value = mode === "group" ? ACTIVE_VOLUME : 0;
+      // Reset element volumes to 1 so they don't double-attenuate with the GainNodes.
+      solo.volume = 1;
+      group.volume = 1;
+
+      soloSource.connect(soloGain);
+      groupSource.connect(groupGain);
+      soloGain.connect(analyser);
+      groupGain.connect(analyser);
       analyser.connect(ctx.destination);
 
       audioCtxRef.current = ctx;
@@ -131,6 +166,8 @@ export function NearbyAudioPlayer({
       ) as Uint8Array<ArrayBuffer>;
       soloSourceRef.current = soloSource;
       groupSourceRef.current = groupSource;
+      soloGainRef.current = soloGain;
+      groupGainRef.current = groupGain;
     }
 
     const ctx = audioCtxRef.current;
